@@ -48,4 +48,7 @@ api.post('/receita/:idreceita/substituir', usuario.validartoken, receita.substit
 api.get('/receita/validar/:codigo', usuario.validartoken, receita.validar);
 api.post('/receita/dispensar/:codigo', usuario.validartoken, receita.dispensar);
 
+// INTEGRAÇÃO — Consome do Prontuário (G5)
+
+
 api.listen(3006, () => { console.log('Receitas Médicas rodando na porta 3006...') });

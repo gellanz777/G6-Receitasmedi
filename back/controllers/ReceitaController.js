@@ -1,9 +1,9 @@
 import Receita from "../models/Receita.js";
 import ReceitaItem from "../models/ReceitaItem.js";
 
-// ============================================================
+
 // FEATURE 1 — Emissão de receita
-// ============================================================
+
 async function inserir(req, res) {
     const prontuario_id = req.body.prontuario_id;
     const paciente_id = req.body.paciente_id;
@@ -21,27 +21,28 @@ async function inserir(req, res) {
         return res.status(400).json({ erro: true, mensagem: "A receita deve conter ao menos 1 medicamento." });
     }
 
-    // Validação com o Prontuário (G5) — consome API externa
+   // Validação com o Prontuário (G5) — consome API externa
     try {
         const resposta = await fetch(
-            `http://localhost:3005/registros/${prontuario_id}`,
-            { headers: { 'token': req.headers.token } }
+            `http://localhost:3005/prontuario/paciente/${paciente_id}`
         );
-        if (resposta.status === 404) {
-            return res.status(422).json({ erro: true, mensagem: "Registro de prontuário não encontrado no G5." });
+        if (!resposta.ok) {
+            return res.status(422).json({ erro: true, mensagem: "Prontuário não encontrado no G5 para este paciente." });
         }
     } catch (error) {
-        // Se o G5 estiver fora do ar, permite cadastro (para desenvolvimento)
-        console.log("Aviso: G5 indisponível, prosseguindo sem validação externa.");
+        return res.status(502).json({ erro: true, mensagem: "G5 indisponível. Não é possível emitir receita sem validação." });
     }
 
     // Criar a receita (cabeçalho)
+    const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+
     const receita = await Receita.create({
         prontuario_id: prontuario_id,
         paciente_id: paciente_id,
         profissional: profissional,
         crm: crm,
-        orientacoes: orientacoes
+        orientacoes: orientacoes,
+        emitida_em: agora
     });
 
     // Criar os itens (medicamentos)
@@ -58,9 +59,9 @@ async function inserir(req, res) {
     return res.json(receita);
 }
 
-// ============================================================
+
 // FEATURE 3 — Consulta de receitas
-// ============================================================
+
 async function listar(req, res) {
     const dados = await Receita.findAll({ order: [['emitida_em', 'DESC']] });
     return res.json(dados);
@@ -88,10 +89,9 @@ async function selecionar(req, res) {
     return res.json({ ...receita.dataValues, itens: itens });
 }
 
-// ============================================================
 // FEATURE 2 — Imutabilidade (substituição em vez de edição)
 // Não existe PUT/DELETE. Para corrigir, cria-se uma nova receita.
-// ============================================================
+
 async function substituir(req, res) {
     const idreceita = req.params.idreceita;
     const antiga = await Receita.findByPk(idreceita);
@@ -114,12 +114,15 @@ async function substituir(req, res) {
     }
 
     // Criar a nova receita
+    const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+
     const nova = await Receita.create({
         prontuario_id: antiga.prontuario_id,
         paciente_id: antiga.paciente_id,
         profissional: profissional,
         crm: crm,
-        orientacoes: orientacoes
+        orientacoes: orientacoes,
+        emitida_em: agora
     });
 
     // Criar os itens da nova receita
@@ -142,9 +145,9 @@ async function substituir(req, res) {
     return res.json(nova);
 }
 
-// ============================================================
+
 // INTEGRAÇÃO — Fornece para Farmácia (G8)
-// ============================================================
+
 
 // GET /receita/validar/:codigo
 // A farmácia envia o UUID impresso na receita e verifica se é válida
@@ -196,6 +199,52 @@ async function dispensar(req, res) {
     await receita.update({ status: 'dispensada' });
 
     return res.json({ erro: false, mensagem: "Receita dispensada com sucesso.", receita: receita });
+}
+
+
+// INTEGRAÇÃO — Consome do Prontuário (G5)
+
+
+// Buscar prontuário do paciente no G5
+async function buscarProntuario(req, res) {
+    const paciente_id = req.params.paciente_id;
+
+    try {
+        const resposta = await fetch(
+            `http://localhost:3005/prontuario/paciente/${paciente_id}`,
+            { headers: { 'token': req.headers.token } }
+        );
+
+        if (resposta.status === 404) {
+            return res.status(404).json({ erro: true, mensagem: "Prontuário não encontrado no G5." });
+        }
+
+        const dados = await resposta.json();
+        return res.json(dados);
+    } catch (error) {
+        return res.status(502).json({ erro: true, mensagem: "G5 indisponível." });
+    }
+}
+
+// Buscar registros clínicos do paciente no G5
+async function buscarRegistros(req, res) {
+    const paciente_id = req.params.paciente_id;
+
+    try {
+        const resposta = await fetch(
+            `http://localhost:3005/prontuario/paciente/${paciente_id}`,
+            { headers: { 'token': req.headers.token } }
+        );
+
+        if (resposta.status === 404) {
+            return res.status(404).json({ erro: true, mensagem: "Registros não encontrados no G5." });
+        }
+
+        const dados = await resposta.json();
+        return res.json(dados);
+    } catch (error) {
+        return res.status(502).json({ erro: true, mensagem: "G5 indisponível." });
+    }
 }
 
 export default { inserir, listar, listarPorPaciente, selecionar, substituir, validar, dispensar };
