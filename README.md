@@ -136,9 +136,9 @@ O sistema atua de forma integrada no ecossistema hospitalar:
 
 ### Integrantes
 
-- [Inserir Nome]
+- Angelo Pandolfo Antonini
 - Luiz Henrique de Moura da Rosa
-- [Inserir Nome]
+- Rafael Luiz Zorzo Stringhi
 
 ---
 
